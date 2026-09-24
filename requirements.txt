@@ -1,0 +1,5 @@
+# 锁死版本号, 保证 Hugging Face Spaces 上的环境跟本地一致
+gradio==6.28.0
+numpy==2.5.1
+pillow==12.3.0
+scikit-image==0.25.2
