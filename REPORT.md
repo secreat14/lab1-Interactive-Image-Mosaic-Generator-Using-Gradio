@@ -1,63 +1,49 @@
-# Mosaic Lab Report
+Mosaic Lab Report
 
-## 1. Method
+1. Method
 
-Given an input image, the pipeline is:
+Input images are processed through the following steps:
 
-1. **Preprocess** — convert to `uint8` RGB (drop the alpha channel, scale floats to 0–255), then center-crop so height and width are multiples of the grid size.
-2. **Patching** — split the image into `p × p` cells with a vectorized reshape
-   `(H, W, 3) → (gy, p, gx, p, 3)`; no Python loops in the hot path.
-3. **Cell color** — mean color of each cell, computed over the patch axes.
-4. **Classification** — each cell is assigned the nearest color of a fixed 6-color
-   palette (red, green, blue, yellow, black, white) using broadcasted Euclidean distance.
-5. **Tiling** — three styles:
-   - `solid`: fill the cell with its palette color (6-color poster look);
-   - `smooth`: fill the cell with its own mean color (closest to the original);
-   - `pattern`: paste one of 7 generated pattern tiles (gradients, checkerboard,
-     stripes, radial), tinted by the cell's mean color while preserving luminance.
-6. **Evaluation** — MSE and SSIM against the cropped original, plus cell count,
-   shown live in the Gradio app.
+* Preprocessing: Convert image to uint8 RGB format (remove alpha channel, scale floats to 0–255) and center-crop so dimensions align with the grid size.
+* Patching: Divide the image into p × p cells using vectorized reshaping (H, W, 3) to (gy, p, gx, p, 3), avoiding Python loops.
+* Cell Color: Calculate the average RGB color for each cell across patch axes.
+* Classification: Map cell colors to the nearest match in a standard 6-color palette (red, green, blue, yellow, black, white) using Euclidean distance.
+* Tiling: Apply one of three rendering styles:
+* solid: Fill each cell with its mapped palette color for a posterized effect.
+* smooth: Fill each cell with its actual average color, preserving high similarity.
+* pattern: Overlay one of 7 procedural patterns (gradients, checkerboard, stripes, radial) tinted by the cell's mean color while maintaining brightness.
 
-The interactive demo (`app.py`) exposes a grid-size slider (8–64 px) and the three
-tile styles, and reports MSE / SSIM / cell count on every run.
 
-## 2. Metrics
+* Evaluation: Calculate MSE and SSIM relative to the cropped original image alongside total cell count.
 
-Test image: 350×350 RGB (`image.png`). Time is best of 3 runs of the full
-`build_mosaic` pipeline (includes pattern-bank generation for `pattern`).
+The Gradio interface (app.py) provides a slider for grid sizes from 8 to 64 pixels and options for tile styles, updating metrics live with each change.
 
-| Grid (px) | Style   | Cells  | MSE     | SSIM   | Time (ms) |
-|-----------|---------|--------|---------|--------|-----------|
-| 16        | solid   | 21×21  | 5426.07 | 0.2165 | 4.38      |
-| 16        | smooth  | 21×21  | 969.38  | 0.4637 | 4.21      |
-| 16        | pattern | 21×21  | 1727.86 | 0.3582 | 6.52      |
-| 32        | solid   | 10×10  | 6601.49 | 0.2014 | 3.45      |
-| 32        | smooth  | 10×10  | 1649.77 | 0.3884 | 3.62      |
-| 32        | pattern | 10×10  | 2448.58 | 0.2968 | 6.78      |
-| 64        | solid   | 5×5    | 8423.27 | 0.1914 | 4.36      |
-| 64        | smooth  | 5×5    | 2652.99 | 0.3235 | 3.23      |
-| 64        | pattern | 5×5    | 3563.75 | 0.2450 | 5.62      |
+2. Metrics
 
-Vectorization check (10×10 grid of 32 px cells, best of 5): nested-loop patch
-extraction 187.2 µs vs. vectorized reshape/transpose 1.3 µs — **~144× faster**,
-bit-identical output.
+Evaluated on a 350×350 RGB image (image.png). Execution times reflect the fastest run out of 3 full pipeline executions (including pattern generation for pattern mode).
 
-## 3. Results
+Grid (px) | Style | Cells | MSE | SSIM | Time (ms)
+16 | solid | 21×21 | 5426.07 | 0.2165 | 4.38
+16 | smooth | 21×21 | 969.38 | 0.4637 | 4.21
+16 | pattern | 21×21 | 1727.86 | 0.3582 | 6.52
+32 | solid | 10×10 | 6601.49 | 0.2014 | 3.45
+32 | smooth | 10×10 | 1649.77 | 0.3884 | 3.62
+32 | pattern | 10×10 | 2448.58 | 0.2968 | 6.78
+64 | solid | 5×5 | 8423.27 | 0.1914 | 4.36
+64 | smooth | 5×5 | 2652.99 | 0.3235 | 3.23
+64 | pattern | 5×5 | 3563.75 | 0.2450 | 5.62
 
-- **`smooth` wins on fidelity at every grid size** (lowest MSE, highest SSIM), as
-  expected — each cell keeps its true mean color, so the mosaic is a blocky
-  downsample of the original.
-- **`solid` trades fidelity for style**: restricting every cell to 6 palette
-  colors gives the poster aesthetic but the worst MSE/SSIM.
-- **`pattern` sits in between**: the luminance-normalized tinted tiles preserve
-  more structure than flat palette fills, at a small cost in build time
-  (pattern-bank generation).
-- **Larger cells → worse fidelity**: with fewer, coarser cells both metrics degrade
-  monotonically (e.g. smooth SSIM 0.4637 → 0.3235 from 16 px to 64 px cells).
-- **Performance is comfortably real-time**: the whole pipeline runs in under
-  7 ms on a 350×350 image, so the Gradio demo regenerates instantly when the
-  slider or style changes.
+Vectorization Benchmark (10×10 grid, 32px cells, best of 5):
 
-In short: vectorized NumPy keeps the pipeline fast enough for live interaction,
-and the three tile styles span the fidelity–style trade-off — `smooth` for
-likeness, `solid` for the poster look, `pattern` as the creative middle ground.
+* Nested loops: 187.2 µs
+* Reshape/transpose: 1.3 µs (~144× speedup with identical output)
+
+3. Results
+
+* Smooth mode achieves the highest fidelity across all grid sizes (lowest MSE, highest SSIM) because it preserves exact cell color averages, acting like a direct pixelation.
+* Solid mode sacrifices accuracy for visual style, yielding higher error rates due to the strict 6-color limit.
+* Pattern mode balances detail and aesthetics, retaining structural cues through brightness normalization at a minimal computational cost.
+* Larger cell sizes reduce image quality, leading to steady decreases in SSIM across all styles.
+* Processing speeds easily support real-time interaction, finishing under 7 ms per frame on 350×350 inputs to allow instant UI feedback in Gradio.
+
+Vectorized operations keep execution fast enough for real-time adjustments, while the three rendering options provide flexibility between visual precision and stylized output.
