@@ -25,8 +25,7 @@ the app shows the mosaic plus MSE, SSIM, and cell count.
 
 ## Live demo
 
-https://huggingface.co/spaces/<your-username>/mosaic-lab
-*(replace with your Space URL after deploying — see REPORT.md for the numbers behind it)*
+https://47.237.187.226.sslip.io:8004/
 
 ## Report
 
